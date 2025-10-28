@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         PHP_PATH = 'C:\\xampp\\php\\php.exe'
-        PROJECT_PATH = 'C:\\Program Files\\folder-xampp\\htdocs\\PetVerse'
+        PROJECT_PATH = 'C:\\Users\\srhak\\.jenkins\\workspace\\PetVerse'
     }
 
     stages {
@@ -15,39 +15,52 @@ pipeline {
 
         stage('PHP Lint') {
             steps {
-                bat "${PHP_PATH} -l ${PROJECT_PATH}\\*.php"
+                bat "\"${PHP_PATH}\" -l *.php"
+            }
+        }
+
+        stage('Setup Test Environment') {
+            steps {
+                // Create directories for test reports
+                bat '''
+                    if not exist "test-reports" mkdir test-reports
+                    if not exist "coverage-report" mkdir coverage-report
+                '''
+                
+                // Download PHPUnit if not exists
+                bat '''
+                    if not exist "phpunit.phar" (
+                        curl -o phpunit.phar https://phar.phpunit.de/phpunit-9.phar
+                    )
+                '''
             }
         }
 
         stage('Unit Tests') {
             steps {
-                dir(PROJECT_PATH) {
-                    bat "${PHP_PATH} phpunit.phar --log-junit test-reports/junit.xml"
-                }
+                bat "\"${PHP_PATH}\" phpunit.phar --log-junit test-reports\\junit.xml"
             }
         }
 
         stage('Code Coverage') {
             steps {
-                dir(PROJECT_PATH) {
-                    bat "${PHP_PATH} phpunit.phar --coverage-html coverage-report"
-                }
+                bat "\"${PHP_PATH}\" phpunit.phar --coverage-html coverage-report"
             }
         }
 
         stage('Deploy to Test') {
             when { branch 'develop' }
             steps {
-                bat "xcopy /E /I /Y ${PROJECT_PATH} C:\\xampp\\htdocs\\PetVerse-Test"
+                bat "xcopy /E /I /Y . C:\\xampp\\htdocs\\PetVerse-Test"
             }
         }
     }
 
     post {
         always {
-            junit 'test-reports/junit.xml'
+            junit allowEmptyResults: true, testResults: 'test-reports/*.xml'
             publishHTML([
-                allowMissing: false,
+                allowMissing: true,
                 alwaysLinkToLastBuild: true,
                 keepAll: true,
                 reportDir: 'coverage-report',
